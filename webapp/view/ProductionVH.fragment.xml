@@ -1,0 +1,15 @@
+<core:FragmentDefinition xmlns="sap.m" xmlns:core="sap.ui.core">
+	<SelectDialog
+		noDataText="No Orders Found"
+		id="selectDialog"
+		title="{i18n>materials}"
+		items="{AllProducts>/}"
+		search=".onValueHelpprodSearch"
+		confirm=".onValueHelpprodClose"
+		cancel=".onValueHelpprodClose"
+		>
+		<StandardListItem id="id_standard"
+			title="{AllProducts>ProductionOrder}"
+			description="{AllProducts>ProductionOrderText}" />
+	</SelectDialog>
+</core:FragmentDefinition>

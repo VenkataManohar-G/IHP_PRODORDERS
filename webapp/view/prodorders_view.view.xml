@@ -1,0 +1,150 @@
+<mvc:View controllerName="prodorders.controller.prodorders_view"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m" xmlns:f="sap.ui.layout.form"
+    xmlns:core="sap.ui.core" xmlns:l="sap.ui.layout" xmlns:t="sap.ui.table">
+    <Page id="page" title="{i18n>title}">
+        <content>
+<VBox id="id_vbox" class="sapUiSmallMargin">
+                <f:SimpleForm id="id_simpleform" editable="true" layout="ColumnLayout" title="{i18n>titleform}" labelSpanXL="3"
+                            labelSpanL="3"
+                            labelSpanM="3"
+                            labelSpanS="12"
+                            adjustLabelSpan="false"
+                            emptySpanXL="4"
+                            emptySpanL="4"
+                            emptySpanM="4"
+                            emptySpanS="0"
+                            columnsXL="1"
+                            columnsL="1"
+                            columnsM="1" >
+                    <f:toolbar>
+				        <Toolbar id="TB1">
+					        <Title id="Title1" text=""/>
+					        <ToolbarSpacer id="id_toolspacer" />
+					        <Button id="id_print" press="onPrint" icon="sap-icon://print" type="Emphasized"/>
+				        </Toolbar>
+			        </f:toolbar>
+                    <f:content>
+                        <core:Title id="id_stitle" text="{i18n>titlecore}"></core:Title>
+                            <Label id="id_plant_label" text="{i18n>plant}" design="Bold" width="100%" required="true" textAlign="Begin" textDirection="LTR" />
+                            <Input id="id_plant" showValueHelp="true" showSuggestion="true"
+			                                     showTableSuggestionValueHelp="false"
+			                                     suggestionRows="{/PlantsVH}" change="onPlantChange" valueHelpRequest=".onPlantVH" >
+                                <suggestionColumns>
+                                <Column id="id_col_plant">
+                                    <Label id="id_label_plant" text="Plant" />
+                                </Column>
+                                <Column id="id_col_planttext"
+                                    hAlign="Center">
+                                    <Label id="id_label_planttxt" text="Description" />
+                                </Column>
+                            </suggestionColumns>
+                            <suggestionRows>
+                                <ColumnListItem id="id_collist_plant">
+                                    <Label id="id_txt_plant" text="{Plant}" />
+                                    <Label id="id_txt_text" text="{PlantName}" />
+                                </ColumnListItem>
+                            </suggestionRows>                     
+                            </Input>
+                            <Label id="id_order_label" text="{i18n>order}" design="Bold" width="100%" required="true" textAlign="Begin" textDirection="LTR" />
+                            <MultiInput id="id_order_val" showValueHelp="true"  valueHelpRequest=".onOrderVH" />
+                            <Label id="id_date_label" text="{i18n>date}" design="Bold" width="100%" required="true" textAlign="Begin" textDirection="LTR" />
+                            <DateRangeSelection id="id_date" change="handleDateChange"
+                        value= "{
+				                    'type': 'sap.ui.model.type.DateInterval',
+				                    'formatOptions': {
+					                			'pattern': 'yyyy-MM-dd'
+				                	},
+				                    'parts': [
+					                            {
+						                            'type': 'sap.ui.model.type.Date',
+						                            'path': 'DateModel>/start'
+					                            },
+					                            {
+						                            'type': 'sap.ui.model.type.Date',
+						                            'path': 'DateModel>/end'
+					                            }
+				                            ]
+			                    }" />
+                            <Button id="id_search" type="Emphasized" text="Go" press="onFilter"></Button>
+                    </f:content>
+                </f:SimpleForm>
+            </VBox>
+            <VBox class="sapUiSmallMargin" id="tableContainer1">
+                <t:TreeTable id="tableId1" width="auto" enableBusyIndicator="true" selectionMode="MultiToggle" toggleOpenState="auto"
+                    enableColumnReordering="false" selectionBehavior="RowSelector" rowSelectionChange="selectRow"
+                    rows="{
+                            path: 'Entries>/',
+                            parameters: {arrayNames:['Orders']}
+                        }">
+                        <t:extension>
+                            <OverflowToolbar id="id_overflowtoolbar" style="Clear">
+                                <Title id="title" text="{i18n>titlecore}"/>
+                                <ToolbarSpacer id="toolbarspacer"/>
+                                <Button id="id_collapse_all" icon="sap-icon://collapse"  text="Collapse" press="onCollapseAll"/>
+                                <Button id="id_expand_all" icon="sap-icon://expand-all" text="Expand" press="onExpandFirstLevel"/>
+                            </OverflowToolbar>
+                        </t:extension>
+                        <t:columns >
+								<t:Column id="id_column1">
+                                    <Text id="id_srno" text="ProductionOrder No."/>
+                                    <t:template>
+                                        <Text id="id_order" text="{Entries>Order_no}" />
+                                    </t:template>
+								</t:Column>
+                                <t:Column id="id_column2">
+                                    <Text id="id_createddate" text="Created date"/>
+                                    <t:template>
+                                        <DateTimePicker width="120%" id="id_cell2" value= "{
+                                                                                                        path: 'Entries>Order_date',
+                                                                                                        type: 'sap.ui.model.type.DateTime',
+                                                                                                        formatOptions: {
+                                                                                                                            'pattern': 'MM/dd/yyyy',
+																															'strictParsing': true,
+                                                                                                                            'UTC': true
+                                                                                                                        }
+								                                                                }"
+                                                                                                editable="false"
+							        />
+                                    </t:template>
+								</t:Column>
+                                <t:Column id="id_column3">
+                                    <Text id="id_" text="Released date."/>
+                                    <t:template>
+                                        <DateTimePicker width="120%" id="id_releaseon" value= "{
+                                                                                                        path: 'Entries>Released_on',
+                                                                                                        type: 'sap.ui.model.type.DateTime',
+                                                                                                        formatOptions: {
+                                                                                                                            'pattern': 'MM/dd/yyyy',
+																															'strictParsing': true,
+                                                                                                                            'UTC': true
+                                                                                                                        }
+								                                                                }"
+                                                                                                editable="false"
+							        />
+                                    </t:template>
+								</t:Column>
+                                <t:Column id="id_column4" >
+									<Text id="id_hierrachy_level" text="Material No" />
+                                    <t:template>
+                                        <Text id="id_hierrachy_level_val" text="{Entries>Material_no}" wrapping="false" />
+                                    </t:template>
+								</t:Column>
+                                 <t:Column id="id_column5" >
+									<Text id="id__level" text="Material Description" />
+                                    <t:template>
+                                        <Text id="id_MaterDesc_val" text="{Entries>Material_desc}" wrapping="false" />
+                                    </t:template>
+								</t:Column>
+                                <t:Column id="id_column6" >
+									<Text id="id_serial" text="Serial No" />
+                                    <t:template>
+                                        <Text id="id_Serial_val" text="{Entries>Serial_no}" wrapping="false" />
+                                    </t:template>
+								</t:Column>
+						</t:columns>
+                </t:TreeTable>   
+            </VBox>
+        </content>
+    </Page>
+</mvc:View>

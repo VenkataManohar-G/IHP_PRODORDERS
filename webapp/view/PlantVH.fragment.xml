@@ -1,0 +1,52 @@
+<core:FragmentDefinition xmlns="sap.ui.comp.valuehelpdialog" xmlns:m="sap.m" xmlns:core="sap.ui.core" xmlns:fb="sap.ui.comp.filterbar">
+	<ValueHelpDialog 
+	        id="idplantsmartvaluehelp"
+			title="Plants"
+			ok=".onValueHelpPlantVHOkPress"
+			cancel=".onValueHelpPlantVHCancelPress"
+			afterClose=".onValueHelpPlantVHAfterClose"
+			supportRanges="true"
+			key="Plant"
+			supportMultiselect="false">
+		<filterBar>
+			<fb:FilterBar id="id_filterbar1" advancedMode="true" search=".onFilterBarWithSuggestionsPlantVHSearch" isRunningInValueHelpDialog="true">
+				<fb:filterGroupItems>
+					<fb:FilterGroupItem id="id_filterbargrp1"
+							groupName="__$INTERNAL$"
+							name="Plant"
+							label="Plant"
+							visibleInFilterBar="true">
+						<fb:control>
+							<m:Input id="id_inputplantid" name="Plant"
+									 showSuggestion="true"
+									 showValueHelp="false"
+									 suggestionItems="{
+										path: '/PlantsVH',
+										sorter: { path: 'Plant' }
+									}">
+								<core:Item id="id_plantidvh" key="{Plant}" text="{Plant}" />
+							</m:Input>
+						</fb:control>
+					</fb:FilterGroupItem>
+				 	<fb:FilterGroupItem id="id_filterbargrp2"
+							groupName="__$INTERNAL$"
+							name="PlantName"
+							label="Plant Name"
+							visibleInFilterBar="true">
+						<fb:control>
+							<m:Input id="id_inputplantnamevh" name="PlantName"
+									 showSuggestion="true"
+									 showValueHelp="false"
+									 suggestionItems="{
+										path: '/PlantsVH',
+										sorter: { path: 'PlantName' }
+									}">
+								<core:Item id="id_plantnameitemvh" key="{PlantName}" text="{PlantName}" />
+							</m:Input>
+						</fb:control>
+					</fb:FilterGroupItem>
+				</fb:filterGroupItems>
+			</fb:FilterBar>
+		</filterBar>
+	</ValueHelpDialog>
+</core:FragmentDefinition>
