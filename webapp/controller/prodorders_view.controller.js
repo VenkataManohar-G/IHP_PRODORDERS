@@ -22,13 +22,27 @@ sap.ui.define([
 ], (Controller, coreLibrary, exportLibrary, Spreadsheet, Dialog, mobileLibrary, Button, Text, Sorter, Filter,
     SearchField, UIColumn, MColumn, Label, TypeString, compLibrary, FilterOperator, Fragment, Message, MessageBox) => {
     "use strict";
-    var oOrderModel, oHierarchyEntryModel,oExecuteBusyModel;
-    var HierarchyEntries = [], Plantlog = [], GroupedData = [];
+    var oOrderModel, oHierarchyEntryModel, oExecuteBusyModel, oFieldModel;
+    var HierarchyEntries = [], Plantlog = [], GroupedData = [], productLogs = [], productnoFound = [];
     var ValueState = coreLibrary.ValueState;
     var oallproductsModel = new sap.ui.model.json.JSONModel();
     var DateValue1, DateValue2, DateoModel;
-    var sUrl = "https://labelcloudapi.onnicelabel.com/Trigger/v1/CloudTrigger/Api-CloudIntegrationDemo-Print";
+    var sUrl, sToken;
     return Controller.extend("prodorders.controller.prodorders_view", {
+        formatDate: function (oValue) {
+            if (oValue) {
+                var oDateFormat = sap.ui.core.format.DateFormat.getDateInstance({
+                    pattern: "MM/dd/yyyy",
+                    strictParsing: true,
+                    UTC: true
+                });
+                var dateValue = new Date(oValue);
+                var datevalueFormatted = oDateFormat.format(dateValue);
+                return datevalueFormatted;
+            } else {
+                return ''
+            }
+        },
         onInit() {
             var that = this;
             DateoModel = new sap.ui.model.json.JSONModel({
@@ -36,6 +50,11 @@ sap.ui.define([
                 end: '' // default end date + 7 days
             });
             that.getView().setModel(DateoModel, "DateModel");
+
+            oFieldModel = new sap.ui.model.json.JSONModel({
+                bHideColumn: false
+            });
+            that.getView().setModel(oFieldModel, "FieldProperty");
         },
         onPlantVH: function (oEvent) {
             this._oBasicSearchFieldWithSuggestionsPlant = new SearchField();
@@ -358,14 +377,40 @@ sap.ui.define([
 
             return Math.floor((utc2 - utc1) / _MS_PER_DAY);
         },
+        onOrderChange:  function(oEvent){
+            var oValue = oEvent.getParameter("newValue");
+            var oMultiInput = this.getView().byId("id_order_val");
+            oMultiInput.addToken(new sap.m.Token({
+                text: oValue
+            }));
+            oMultiInput.setValue('');
+        },
         onFilter: async function () {
             var oPlant = this.getView().byId("id_plant").getValue(),
                 oOrders = this.getView().byId("id_order_val").getTokens(),
                 oModel = this.getView().getModel(),
+                oHierarchyEntryModel = new sap.ui.model.json.JSONModel(),
                 oFilter = [], ofilterPlant, ofilterOrders, ofilterDate, that = this;
+            oFieldModel = this.getView().getModel("FieldProperty");
+            oFieldModel.setProperty("/bHideColumn", false);
+            oFieldModel.refresh();
             if (oPlant == '' || (oOrders.length === 0 && (DateValue1 === undefined || DateValue1 == ''))) {
-                MessageBox.warning("Plant and Production Orders/Created Date is Mandatory. Please fill the details");
+                if (oPlant == '') {
+                    MessageBox.warning("Plant is Mandatory. Please fill the details");
+                } else if (oOrders.length === 0 && (DateValue1 === undefined || DateValue1 == '')) {
+                    MessageBox.warning("Production Order or Created Date is Mandatory. Please fill the details");
+                    HierarchyEntries = [];
+                    oHierarchyEntryModel.setData(HierarchyEntries);
+                    this.getView().setModel(oHierarchyEntryModel, "Entries");
+                    oExecuteBusyModel.close();
+                }
+
             } else {
+                oExecuteBusyModel = new sap.m.BusyDialog({
+                    title: "Loading Data",
+                    text: "Please wait....."
+                });
+                oExecuteBusyModel.open();
                 if (oPlant) {
                     ofilterPlant = new sap.ui.model.Filter("Plant", "EQ", oPlant);
                     oFilter.push(ofilterPlant);
@@ -392,39 +437,42 @@ sap.ui.define([
                     ofilterDate = new sap.ui.model.Filter("CreationDate", "BT", oDateRangefrom, oDateRangeto);
                     oFilter.push(ofilterDate);
                 }
+                HierarchyEntries = [];
                 let sProductionOrders = await that._getProductionOrderDetails(oModel, oFilter);
-                if (sProductionOrders) {
-                    oHierarchyEntryModel = new sap.ui.model.json.JSONModel();
-                    var groupedData = sProductionOrders.reduce((acc, currentItem) => {
-                        // Create a composite key using Order_no, Order_date, and Released_on
-                        const key = `${currentItem.ProductionOrder}|${currentItem.CreationDate}|${currentItem.ReleaseDate}`;
-
-                        // If the key doesn't exist in the accumulator, create a new group
-                        if (!acc[key]) {
-                            acc[key] = {
-                                Order_no: currentItem.ProductionOrder,
-                                Order_date: currentItem.CreationDate,
-                                Released_on: currentItem.ReleaseDate,
-                                Orders: [] // Array to hold all items for this group
+                try {
+                    if (sProductionOrders == '404') {
+                        HierarchyEntries = [];
+                        oHierarchyEntryModel.setData(HierarchyEntries);
+                        this.getView().setModel(oHierarchyEntryModel, "Entries");
+                        oExecuteBusyModel.close();
+                        MessageBox.information("No Orders found please try with other criteria!!");
+                    } else {
+                        if (sProductionOrders.length > 0) {
+                            for (var i = 0; i < sProductionOrders.length; i++) {
+                                var oProductionOrder = {};
+                                oProductionOrder.ProductionOrder = sProductionOrders[i].ProductionOrder;
+                                oProductionOrder.CreationDate = sProductionOrders[i].CreationDate;
+                                oProductionOrder.ReleaseDate = sProductionOrders[i].ReleaseDate;
+                                oProductionOrder.Material = sProductionOrders[i].Material;
+                                oProductionOrder.MaterialDescription = sProductionOrders[i].MaterialDescription;
+                                oProductionOrder.SerialNumber = sProductionOrders[i].SerialNumber;
+                                oProductionOrder.Status = '';
+                                oProductionOrder.Message = '';
+                                HierarchyEntries.push(oProductionOrder);
                             };
+                            oHierarchyEntryModel.setData(HierarchyEntries);
+                            this.getView().setModel(oHierarchyEntryModel, "Entries");
+                            oExecuteBusyModel.close();
                         }
+                    }
 
-                        // Push the current item into the appropriate group
-                        acc[key].Orders.push({
-                            Order_no: currentItem.ProductionOrder,
-                            Order_date: currentItem.CreationDate,
-                            Released_on: currentItem.ReleaseDate,
-                            Material_no: currentItem.Material,
-                            Material_desc: currentItem.MaterialDescription,
-                            Serial_no: currentItem.SerialNumber
-                        });
-
-                        return acc;
-                    }, {});
-                    var oGroupedData = Object.values(groupedData);
-                    oHierarchyEntryModel.setData(oGroupedData);
+                } catch (error) {
+                    HierarchyEntries = [];
+                    oHierarchyEntryModel.setData(HierarchyEntries);
                     this.getView().setModel(oHierarchyEntryModel, "Entries");
+                    oExecuteBusyModel.close();
                 }
+
             }
         },
         _getProductionOrderDetails: async function (oModel, oFilter) {
@@ -465,164 +513,252 @@ sap.ui.define([
                 });
             });
         },
-        selectRow: function (oEvent) {
-          /*  var oTable = oEvent.getSource();
-            var oIndex = oTable.getSelectedIndex();
-            var oSelectedItem = oTable.getBinding("rows");
-            var aItems = oSelectedItem.oModel.oData[oIndex];
-            var count = 0;
-            var index = 0
-            index = oIndex + 1;
-            count = index;
-            console.log(index);
-            try {
-                if(aItems.Orders){
-                    for (var i = 0; i < aItems.Orders.length; i++) {
-                       count = count + 1;
-                    }
-                    if(index == count){
-                        oTable.setSelectedIndex(index);
-                    }else{
-                        oTable.addSelectionInterval(index,count);
-                    }      
-                }
-            } catch (error) {
-                
-            }
-            if(aItems){
-                for (var i = 0; i < aItems.length; i++) {
-                   count = count + 1;
-                }
-                if(oIndex && count){
-                    if(index == count){
-                        oTable.setSelectedIndex(index);
-                    }else{
-                        oTable.addSelectionInterval(index,count);
-                    }
-                    
-                }
-                
-            }*/ 
-        },
-        onPrint: async function(oEvent){
+        onPrint: async function (oEvent) {
             var that = this,
                 oTable = this.getView().byId("tableId1"),
                 oModel = this.getView().getModel(),
-                oIndices = oTable.getSelectedIndices(),
-                oRows = oTable.getRows(),
-                oSelectedItem = oTable.getBinding("rows"),
-                oNodes = oSelectedItem.getNodes(),
+                oSelectedItem = oTable.getSelectedItems(),
                 oFilterMultiOrderData = [],
                 oFilter = [],
+                oSelectedItemArray = [],
                 ofilterOrdersData;
-                oExecuteBusyModel = new sap.m.BusyDialog({
-                    title: "Loading Data",
-                    text: "Please wait....."
-                });
-                oExecuteBusyModel.open();
-                oIndices.forEach( function (Index) {
-                    var filterData = oRows[Index].getCells()[0].getText() + '|' + oRows[Index].getCells()[3].getText() + '|' + oRows[Index].getCells()[5].getText();
-                    oFilterMultiOrderData.push(new sap.ui.model.Filter("filterString", "EQ", filterData));
-                });
-                ofilterOrdersData = new sap.ui.model.Filter({
+            var oConfigDataModel = this.getOwnerComponent().getModel('configurationModel');
+            var oConfigData = oConfigDataModel.getData().items;
+            productLogs = [],productnoFound = [];
+            try {
+                if (oConfigData.length > 0) {
+                    let urldetails = oConfigData.filter(function (item) {
+                        return item.fieldname === 'URL';
+                    });
+                    if (urldetails.length > 0) {
+                        sUrl = urldetails[0].value;
+                    }
+                    let tokendetails = oConfigData.filter(function (item) {
+                        return item.fieldname === 'TOKEN';
+                    });
+                    if (tokendetails.length > 0) {
+                        sToken = tokendetails[0].value;
+                    }
+                }
+            } catch (error) {
+                sToken = '';
+                sUrl = '';
+            }
+            if (sUrl && sToken) {
+                if (oSelectedItem.length > 0) {
+                    oExecuteBusyModel = new sap.m.BusyDialog({
+                        title: "Loading Data",
+                        text: "Please wait....."
+                    });
+                    oExecuteBusyModel.open();
+                    oSelectedItem.forEach(function (selectedItem, Index) {
+                        var oContext = oSelectedItem[Index].getCells();
+                        var filterData = oContext[1].getText() + '|' + oContext[4].getText() + '|' + oContext[6].getText();
+                        oFilterMultiOrderData.push(new sap.ui.model.Filter("filterString", "EQ", filterData));
+                        oSelectedItemArray.push({ ProductionOrder: oContext[1].getText(), Material: oContext[4].getText(), SerialNumber: oContext[6].getText() })
+                    });
+                    ofilterOrdersData = new sap.ui.model.Filter({
                         filters: oFilterMultiOrderData,
                         and: false
-                });
-                oFilter.push(ofilterOrdersData);
-                let oProductResults = await that._getProductionOrderData(oModel,oFilter);
-                try{
-                    if(oProductResults.length > 0){
-                        for (var Product of oProductResults) {
-                            try {
-                                if(Product){
-                                    var oLoftware = {}, Variables = {};
-                                    var urllabel = "/Labels/Templates/Serial No Label.nlbl";
-                                    oLoftware.Variables = [];
-                                    oLoftware.FilePath = urllabel;
-                                    oLoftware.FileVersion = "";
-                                    oLoftware.Quantity = "1";
-                                    oLoftware.Printer = "ZEBRA 105SL 300DPI";//"RVLLBLPRT20";
-                                    oLoftware.PrinterSettings = "";
-                                    if (Product.Material) {
-                                        Variables.CATALOG_NUMBER = Product.Material;
-                                    }
-                                    if (Product.insepectionMemo) {
-                                        Variables.MODEL_NUMBER = Product.insepectionMemo;
-                                    }
-                                    if (Product.quantity_GRGI) {
-                                        Variables.GR_SLIPS_QTY = Product.quantity_GRGI;
-                                    }
-                                    if (Product.labelFrom) {
-                                        Variables.LABEL_FORM = Product.labelFrom;
-                                    }
-                                    if (Product.labelType) {
-                                        Variables.LABEL_TYPE = Product.labelType;
-                                    }
-                                    if (Product.materialOld) {
-    
-                                    }
-                                    if (Product.articleNo_EAN_UPC) {
-                                        Variables.UPC_NUMBER = Product.articleNo_EAN_UPC;
-                                    }
-                                    if (Product.materialGroup) {
-                                        Variables.BRAND_NAME = Product.materialGroup;
-                                    }
-                                    if (Product.materialDescription) {
-                                        Variables.DESCRIPTION = Product.materialDescription;
-                                    }
-                                    if (Product.serialNo) {
-                                        Variables.SERIAL_NUMBER = Product.serialNo;
-                                    }
-                                    if (Product.objectListNo) {
-    
-                                    }
-                                    if (Product.orderNo) {
-                                        Variables.PROD_ORDER = Product.orderNo;
-                                    }
-                                    if (Product.objectlistCounter) {
-                                        Variables.SEQ_NUM = Product.objectlistCounter;
-                                    }
-                                    if (Product.objectlisCounterMax) {
-                                        Variables.SEQ_QTY = Product.objectlisCounterMax;
-                                    }
-                                    if (Product.materialSubstitute) {
-                                        Variables.CUST_PART_NUMBER = Product.materialSubstitute;
-                                    }
-                                    if (Product.userText) {
-                                        Variables.CUSTOM_TXT = Product.userText;
-                                    }
-                                    if (Product.location) {
-                                        if (oPlant == "1710") {
-                                            Variables.LOCATION = "Russellville, AL";
-                                        } else if (oPlant == "2910") {
-                                            Variables.LOCATION = "Toronto, ON";
+                    });
+                    oFilter.push(ofilterOrdersData);
+                    let oProductResults = await that._getProductionOrderData(oModel, oFilter);
+                    try {
+                        if (oProductResults.length > 0) {
+                            var oLoftware = {}, Variables;
+                            oLoftware.Variables = [];
+                            oLoftware.FileVersion = "";
+                            oLoftware.PrinterSettings = "";
+                            for (var Product of oProductResults) {
+                                var oFiltersdata = [], ofilterPlant, ofilterLabeltype;
+                                Variables = {};
+                                try {
+                                    if (Product) {
+                                        var urllabel = "/Labels/Templates/Serial No Label.nlbl";
+                                        if (urllabel) {
+                                            Variables.FilePath = urllabel;
                                         }
-                                    }
-                                    oLoftware.Variables.push(Variables);
-                                    var oLoftwareJson = JSON.stringify(oLoftware);
-                                        try {
-                                            var oResult = await that._sendprodlabels(sUrl, oLoftwareJson);
-                                        } catch (error) {
-                                            console.log('error logged');
+                                        if (Product.Plant) {
+                                            ofilterPlant = new sap.ui.model.Filter("Plant", "EQ", Product.Plant);
+                                            oFiltersdata.push(ofilterPlant);
+                                            ofilterLabeltype = new sap.ui.model.Filter("LabelType", "EQ", 'PROD');
+                                            oFiltersdata.push(ofilterLabeltype);
+                                            try {
+                                                let oPrinter = await that._getPlantprinters(oModel, oFiltersdata);
+                                                if (oPrinter) {
+                                                    Variables.Printer = oPrinter;
+                                                } else {
+                                                    productnoFound.push({ ProductionOrder: Product.orderNo, Material: Product.Material, SerialNumber: Product.serialNo, Message: 'Printer not configured.' });
+                                                    continue;
+                                                }
+                                            } catch (error) {
+                                                productnoFound.push({ ProductionOrder: Product.orderNo, Material: Product.Material, SerialNumber: Product.serialNo, Message: 'Printer not configured.' });
+                                                continue;
+                                            }
+                                        } else {
+                                            productnoFound.push({ ProductionOrder: Product.orderNo, Material: Product.Material, SerialNumber: Product.serialNo, Message: 'Plant not found' });
                                             continue;
                                         }
+                                        if (Product.Material) {
+                                            Variables.CATALOG_NUMBER = Product.Material;
+                                        }
+                                        if (Product.insepectionMemo) {
+                                            Variables.MODEL_NUMBER = Product.insepectionMemo;
+                                        }
+                                        if (Product.quantity_GRGI){
+                                            Variables.GR_SLIPS_QTY = '1';
+                                        }
+                                        Variables.Quantity = '1';
+                                        if (Product.labelFrom) {
+                                            Variables.LABEL_FORM = Product.labelFrom;
+                                        }
+                                        if (Product.labelType) {
+                                            Variables.LABEL_TYPE = Product.labelType;
+                                        }
+                                        if (Product.materialOld) {
 
-                                }else{
-                                    continue;
+                                        }
+                                        if (Product.articleNo_EAN_UPC) {
+                                            Variables.UPC_NUMBER = Product.articleNo_EAN_UPC;
+                                        }
+                                        if (Product.materialGroup) {
+                                            Variables.BRAND_NAME = Product.materialGroup;
+                                        }
+                                        if (Product.materialDescription) {
+                                            Variables.DESCRIPTION = Product.materialDescription;
+                                        }
+                                        if (Product.serialNo) {
+                                            Variables.SERIAL_NUMBER = Product.serialNo;
+                                        }
+                                        if (Product.objectListNo) {
+
+                                        }
+                                        if (Product.orderNo) {
+                                            Variables.PROD_ORDER = Product.orderNo;
+                                        }
+                                        if (Product.objectlistCounter) {
+                                            Variables.SEQ_NUM = Product.objectlistCounter;
+                                        }
+                                        if (Product.objectlisCounterMax) {
+                                            Variables.SEQ_QTY = Product.objectlisCounterMax;
+                                        }
+                                        if (Product.materialSubstitute) {
+                                            Variables.CUST_PART_NUMBER = Product.materialSubstitute;
+                                        }
+                                        if (Product.userText) {
+                                            Variables.CUSTOM_TXT = Product.userText;
+                                        }
+                                        if (Product.location) {
+                                            if (oPlant == "1710") {
+                                                Variables.LOCATION = "Russellville, AL";
+                                            } else if (oPlant == "2910") {
+                                                Variables.LOCATION = "Toronto, ON";
+                                            }
+                                        }
+                                        oLoftware.Variables.push(Variables);
+                                    } else {
+                                        continue;
+                                    }
+                                } catch (error) {
+                                    oExecuteBusyModel.close();
                                 }
-                            } catch (error) {
+                            };
+                            if (oLoftware.Variables.length > 0) {
+                                var oLoftwareJson = JSON.stringify(oLoftware);
+                                try {
+                                    var oResult = await that._sendprodlabels(sUrl, oLoftwareJson);
+                                } catch (error) {
+                                }
+                                if (productLogs) {
+                                    var oModel = this.getView().getModel("Entries");
+                                    var oData = oModel.getData();
+                                    console.log(oData);
+                                    for (var i = 0; i < oData.length; i++) {
+                                        let oProductNotFound = productnoFound.filter(function (product) {
+                                            return product.ProductionOrder === oData[i].ProductionOrder && product.Material === oData[i].Material && product.SerialNumber === oData[i].SerialNumber;
+                                        });
+                                        if (oProductNotFound.length > 0) {
+                                            oData[i].Status = oProductNotFound[0].Status;
+                                            oData[i].Message = oProductNotFound[0].Message;
+                                        } else {
+                                            let existingProductData = oProductResults.filter(function (item) {
+                                                return item.orderNo === oData[i].ProductionOrder && item.Material === oData[i].Material && item.serialNo === oData[i].SerialNumber;
+                                            });
+                                            if (existingProductData.length > 0) {
+                                                oData[i].Status = productLogs[0].Status;
+                                                oData[i].Message = productLogs[0].Message;
+                                            } else {
+                                                let sSelecteddata = oSelectedItemArray.filter(function (selected) {
+                                                    return selected.ProductionOrder === oData[i].ProductionOrder && selected.Material === oData[i].Material && selected.SerialNumber === oData[i].SerialNumber;
+                                                });
+                                                if (sSelecteddata.length > 0) {
+                                                    oData[i].Status = 'E';
+                                                    oData[i].Message = 'Production Order serial numbers Data Not Found';
+                                                } else {
+                                                    oData[i].Status = '';
+                                                    oData[i].Message = '';
+                                                }
+                                            }
+                                        }
+                                    }
+                                    oModel.refresh();
+                                    oFieldModel = this.getView().getModel("FieldProperty");
+                                    oFieldModel.setProperty("/bHideColumn", true);
+                                    oFieldModel.refresh();
+                                    oExecuteBusyModel.close();
+                                }
+                            } else {
+                                var oModel = this.getView().getModel("Entries");
+                                var oData = oModel.getData();
+                                for (var i = 0; i < oData.length; i++) {
+                                    let oProductNotFound = productnoFound.filter(function (product) {
+                                        return product.ProductionOrder === oData[i].ProductionOrder && product.Material === oData[i].Material && product.SerialNumber === oData[i].SerialNumber;
+                                    });
+                                    if (oProductNotFound.length > 0) {
+                                        oData[i].Status = oProductNotFound[0].Status;
+                                        oData[i].Message = oProductNotFound[0].Message;
+                                    }
+                                }
+                                oModel.refresh();
+                                oFieldModel = this.getView().getModel("FieldProperty");
+                                oFieldModel.setProperty("/bHideColumn", true);
+                                oFieldModel.refresh();
                                 oExecuteBusyModel.close();
                             }
-                        };
+
+                        }
+                    } catch {
+                        MessageBox.warning("No Data Found for Orders to Print label!! Please try again");
                         oExecuteBusyModel.close();
                     }
-                }catch{
-                    MessageBox.warning("No Data Found for Orders to Print label!! Please try again");
-                    oExecuteBusyModel.close();
+                } else {
+                    MessageBox.warning("No Orders selected to print labels");
                 }
+            } else {
+                MessageBox.warning("No Loftware Configurations maintaned!! Please Configure");
+            }
 
         },
-        _sendprodlabels: async function (sUrl,oLoftwareJson) {
+        _getPlantprinters: async function (oModel, oFilters) {
+            return new Promise((resolve, reject) => {
+                oModel.read("/Printers", {
+                    filters: oFilters,
+                    urlParameters: { "$top": 5000 },
+                    success: function (oData) {
+                        var aPrinterDetails = oData.results;
+                        if (aPrinterDetails.length > 0) {
+                            resolve(aPrinterDetails[0].Printer);
+                        } else {
+                            resolve('');
+                        }
+                    },
+                    error: function (oError) {
+                        reject('');
+                    }
+                });
+            });
+        },
+        _sendprodlabels: async function (sUrl, oLoftwareJson) {
             return new Promise((resolve, reject) => {
                 $.ajax({
                     type: "POST",
@@ -632,15 +768,30 @@ sap.ui.define([
                     data: oLoftwareJson,
                     crossDomain: true,
                     headers: {
-                        "Ocp-Apim-Subscription-Key": "d79514cfdffe4c229ac15b52fbf9adc8"
+                        "Ocp-Apim-Subscription-Key": sToken
                     },
                     success: function (response) {
                         console.log("Success:", response);
                         resolve({ status: 'S', Message: 'Successfully' });
+                        if (response) {
+                            var sResponse = response.Response;
+                        }
+                        productLogs.push({ Status: 'S', Message: sResponse })
                     },
                     error: function (xhr, textStatus, errorThrown) {
                         console.log("Error:", xhr);
                         reject({ status: 'E', Message: xhr.responseText });
+                        try {
+                            var message = JSON.parse(xhr.responseText);
+                            var sMessage = message.Message;
+                        } catch (error) {
+                            var message = xhr.responseText;
+                            var sMessage = message
+                        }
+                        if (sMessage) {
+                            var aMessage = sMessage;
+                        }
+                        productLogs.push({ Status: 'E', Message: aMessage })
                     }
                 });
             })

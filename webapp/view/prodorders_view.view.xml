@@ -1,10 +1,10 @@
 <mvc:View controllerName="prodorders.controller.prodorders_view"
     xmlns:mvc="sap.ui.core.mvc"
     xmlns="sap.m" xmlns:f="sap.ui.layout.form"
-    xmlns:core="sap.ui.core" xmlns:l="sap.ui.layout" xmlns:t="sap.ui.table">
-    <Page id="page" title="{i18n>title}">
+    xmlns:core="sap.ui.core" xmlns:l="sap.ui.layout" >
+    <Page id="page" showHeader="false">
         <content>
-<VBox id="id_vbox" class="sapUiSmallMargin">
+            <VBox id="id_vbox" class="sapUiSmallMargin">
                 <f:SimpleForm id="id_simpleform" editable="true" layout="ColumnLayout" title="{i18n>titleform}" labelSpanXL="3"
                             labelSpanL="3"
                             labelSpanM="3"
@@ -46,9 +46,9 @@
                                 </ColumnListItem>
                             </suggestionRows>                     
                             </Input>
-                            <Label id="id_order_label" text="{i18n>order}" design="Bold" width="100%" required="true" textAlign="Begin" textDirection="LTR" />
-                            <MultiInput id="id_order_val" showValueHelp="true"  valueHelpRequest=".onOrderVH" />
-                            <Label id="id_date_label" text="{i18n>date}" design="Bold" width="100%" required="true" textAlign="Begin" textDirection="LTR" />
+                            <Label id="id_order_label" text="{i18n>order}" design="Bold" width="100%" textAlign="Begin" textDirection="LTR" />
+                            <MultiInput id="id_order_val" showValueHelp="true"  valueHelpRequest=".onOrderVH" change="onOrderChange" />
+                            <Label id="id_date_label" text="{i18n>date}" design="Bold" width="100%" textAlign="Begin" textDirection="LTR" />
                             <DateRangeSelection id="id_date" change="handleDateChange"
                         value= "{
 				                    'type': 'sap.ui.model.type.DateInterval',
@@ -71,79 +71,58 @@
                 </f:SimpleForm>
             </VBox>
             <VBox class="sapUiSmallMargin" id="tableContainer1">
-                <t:TreeTable id="tableId1" width="auto" enableBusyIndicator="true" selectionMode="MultiToggle" toggleOpenState="auto"
-                    enableColumnReordering="false" selectionBehavior="RowSelector" rowSelectionChange="selectRow"
-                    rows="{
+                <Table id="tableId1" width="auto" enableBusyIndicator="true" mode="MultiSelect" growing="true"
+                    items="{
                             path: 'Entries>/',
-                            parameters: {arrayNames:['Orders']}
+                            sorter: [{ 
+                                        path: 'ProductionOrder',
+                                        descending: false
+                                    },
+                                    {
+                                      path: 'Material',
+                                      descending: false  
+                                    },{
+                                      path: 'SerialNumber',
+                                      descending: false  
+                                    }]   
                         }">
-                        <t:extension>
-                            <OverflowToolbar id="id_overflowtoolbar" style="Clear">
-                                <Title id="title" text="{i18n>titlecore}"/>
-                                <ToolbarSpacer id="toolbarspacer"/>
-                                <Button id="id_collapse_all" icon="sap-icon://collapse"  text="Collapse" press="onCollapseAll"/>
-                                <Button id="id_expand_all" icon="sap-icon://expand-all" text="Expand" press="onExpandFirstLevel"/>
-                            </OverflowToolbar>
-                        </t:extension>
-                        <t:columns >
-								<t:Column id="id_column1">
+                        <columns >
+                                <Column id="id_column0" width="5%" hAlign="Left" visible="{FieldProperty>/bHideColumn}">
+                                    <Text id="id_button"/>
+								</Column>
+								<Column id="id_column1" mergeDuplicates="true" width="20%">
                                     <Text id="id_srno" text="ProductionOrder No."/>
-                                    <t:template>
-                                        <Text id="id_order" text="{Entries>Order_no}" />
-                                    </t:template>
-								</t:Column>
-                                <t:Column id="id_column2">
+								</Column>
+                                <Column id="id_column2" width="15%">
                                     <Text id="id_createddate" text="Created date"/>
-                                    <t:template>
-                                        <DateTimePicker width="120%" id="id_cell2" value= "{
-                                                                                                        path: 'Entries>Order_date',
-                                                                                                        type: 'sap.ui.model.type.DateTime',
-                                                                                                        formatOptions: {
-                                                                                                                            'pattern': 'MM/dd/yyyy',
-																															'strictParsing': true,
-                                                                                                                            'UTC': true
-                                                                                                                        }
-								                                                                }"
-                                                                                                editable="false"
-							        />
-                                    </t:template>
-								</t:Column>
-                                <t:Column id="id_column3">
+								</Column>
+                                <Column id="id_column3" width="15%">
                                     <Text id="id_" text="Released date."/>
-                                    <t:template>
-                                        <DateTimePicker width="120%" id="id_releaseon" value= "{
-                                                                                                        path: 'Entries>Released_on',
-                                                                                                        type: 'sap.ui.model.type.DateTime',
-                                                                                                        formatOptions: {
-                                                                                                                            'pattern': 'MM/dd/yyyy',
-																															'strictParsing': true,
-                                                                                                                            'UTC': true
-                                                                                                                        }
-								                                                                }"
-                                                                                                editable="false"
-							        />
-                                    </t:template>
-								</t:Column>
-                                <t:Column id="id_column4" >
+								</Column>
+                                <Column id="id_column4" width="25%">
 									<Text id="id_hierrachy_level" text="Material No" />
-                                    <t:template>
-                                        <Text id="id_hierrachy_level_val" text="{Entries>Material_no}" wrapping="false" />
-                                    </t:template>
-								</t:Column>
-                                 <t:Column id="id_column5" >
+								</Column>
+                                 <Column id="id_column5" width="50%">
 									<Text id="id__level" text="Material Description" />
-                                    <t:template>
-                                        <Text id="id_MaterDesc_val" text="{Entries>Material_desc}" wrapping="false" />
-                                    </t:template>
-								</t:Column>
-                                <t:Column id="id_column6" >
+								</Column>
+                                <Column id="id_column6" width="20%">
 									<Text id="id_serial" text="Serial No" />
-                                    <t:template>
-                                        <Text id="id_Serial_val" text="{Entries>Serial_no}" wrapping="false" />
-                                    </t:template>
-								</t:Column>
-						</t:columns>
-                </t:TreeTable>   
+								</Column>
+						</columns>
+                        <items>
+							<ColumnListItem id="id_uploadcolumnlist1" vAlign="Middle" >
+								<cells>
+                                    <Button textDirection="LTR" iconDensityAware="true" id="id_button_cell" icon="sap-icon://light-mode"  type="{= ${Entries>Status} === 'S' ? 'Success' : 'Negative'}" tooltip="{Entries>Message}" visible="{= ${Entries>Status} !== '' ? true : false}"/>
+                                    <Text id="id_order" text="{Entries>ProductionOrder}" />
+                                    <Text id="id_cell2" text="{path: 'Entries>CreationDate', formatter: '.formatDate'}" />
+                                    <Text id="id_releaseon" text="{path: 'Entries>ReleaseDate', formatter: '.formatDate'}" />
+                                <Text id="id_hierrachy_level_val" text="{Entries>Material}" wrapping="false" />
+                                <Text id="id_MaterDesc_val" text="{Entries>MaterialDescription}" wrapping="true" wrappingType="Normal" maxLines="3" />
+                                <Text id="id_Serial_val" text="{Entries>SerialNumber}" wrapping="false" />
+                                </cells>
+                            </ColumnListItem>
+                        </items>      
+                </Table>   
             </VBox>
         </content>
     </Page>

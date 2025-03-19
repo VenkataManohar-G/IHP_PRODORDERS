@@ -2,7 +2,7 @@
 	<SelectDialog
 		noDataText="No Orders Found"
 		id="selectDialog"
-		title="{i18n>materials}"
+		title="{i18n>orders}"
 		items="{AllProducts>/}"
 		search=".onValueHelpprodSearch"
 		confirm=".onValueHelpprodClose"

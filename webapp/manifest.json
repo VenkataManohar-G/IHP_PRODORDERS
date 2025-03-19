@@ -25,6 +25,19 @@
           "odataVersion": "2.0"
         }
       }
+    },
+    "crossNavigation": {
+      "inbounds": {
+        "prodorderlabel-manage": {
+          "semanticObject": "prodorderlabel",
+          "action": "manage",
+          "title": "{{prodorderlabel-manage.flpTitle}}",
+          "signature": {
+            "parameters": {},
+            "additionalParameters": "allowed"
+          }
+        }
+      }
     }
   },
   "sap.ui": {
@@ -67,6 +80,11 @@
         "dataSource": "mainService",
         "preload": true,
         "settings": {}
+      },
+      "configurationModel": {
+        "type": "sap.ui.model.json.JSONModel",
+        "settings": {},
+        "preload": false
       }
     },
     "resources": {
