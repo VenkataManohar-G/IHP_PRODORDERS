@@ -224,13 +224,11 @@ sap.ui.define([
         },
         /*Production Order VH*/
         onOrderVH: async function (oEvent) {
-            var sInputValue = oEvent.getSource().getValue(),
-                oButton = oEvent.getSource(),
-                oPlant = this.getView().byId("id_plant").getValue(),
-                oView = this.getView(),
+            var oPlant = this.getView().byId("id_plant").getValue(),
                 oFilter = [],
                 oPlantfilter,
                 oModel = this.getView().getModel(),
+                oDialogprodVH = this.byId("prodVHDialog"),
                 that = this;
             if (oPlant) {
                 oPlantfilter = new sap.ui.model.Filter("ProductionPlant", "EQ", oPlant);
@@ -246,25 +244,84 @@ sap.ui.define([
                 oallproductsModel.refresh();
                 that.getView().setModel(oallproductsModel, "AllProducts");
             }
-            if (!this._pValueHelpDialog) {
-                this._pValueHelpDialog = Fragment.load({
-                    id: oView.getId(),
-                    name: "prodorders.view.ProductionVH",
-                    controller: this
-                }).then(function (oDialog) {
-                    oView.addDependent(oDialog);
-                    return oDialog;
-                });
+            if (!oDialogprodVH) {
+                oDialogprodVH = new sap.ui.xmlfragment(this.getView().getId(), "prodorders.view.ProductionVH", this);
+                this.getView().addDependent(oDialogprodVH);
+                oDialogprodVH.open();
+            } else {
+                oDialogprodVH.open();
             }
-            this._pValueHelpDialog.then(function (oDialog) {
-                // Create a filter for the binding
-                if (sInputValue) {
-                    oDialog.open(sInputValue);
-                } else {
-                    oDialog.open();
+        },
+        OnVHprodSelected: function (oEvent) {
+            var oMultiInputSelected = this.getView().byId('id_prod_value_help');
+            var oSelected = oEvent.getParameter('selected');
+            var oRemoved = oEvent.getParameter('removed');
+            var oValue = oEvent.getParameter('listItem').getCells()[0].getText();
+            if (oSelected === true) {
+                oMultiInputSelected.addToken(new sap.m.Token({
+                    key: oValue, text: oValue
+                }));
+            } else {
+                var removedTokens = oMultiInputSelected.getTokens();
+                var index = -1;
+                for (var i = 0; i < removedTokens.length; i++) {
+                    if (removedTokens[i].getKey() === oValue || removedTokens[i].getText() === oValue) {
+                        index = i;
+                        break;
+                    }
                 }
-                that._configDialog(oButton, oDialog);
+                oMultiInputSelected.removeToken(index);
+            }
+        },
+        onprodSearch: async function (oEvent) {
+            var oModel = this.getView().getModel(),
+                oPlant = this.getView().byId("id_plant").getValue(),
+                oTable = this.getView().byId('prodvaluehelp'),
+                sQuery = oEvent.getSource().getValue(),
+                that = this,
+                oFilter = [],
+                oProdfilter,
+                oPlantfilter;
+            if (sQuery) {
+                oProdfilter = new sap.ui.model.Filter("ProductionOrder", sap.ui.model.FilterOperator.Contains, sQuery);
+                oFilter.push(oProdfilter);
+            }
+            if (oPlant) {
+                oPlantfilter = new sap.ui.model.Filter("ProductionPlant", "EQ", oPlant);
+                oFilter.push(oPlantfilter);
+            }
+            oTable.removeSelections(true);
+            let oProductVH = await that._getProductionVH(oModel, oFilter);
+            if (oProductVH !== '404') {
+                oallproductsModel.setData(oProductVH);
+                oallproductsModel.refresh();
+                that.getView().setModel(oallproductsModel, "AllProducts");
+            } else {
+                oProductVH = [];
+                oallproductsModel.setData(oProductVH);
+                oallproductsModel.refresh();
+                that.getView().setModel(oallproductsModel, "AllProducts");
+            }
+        },
+        okprodVHDialog: function(oEvent){
+            var oTable = this.getView().byId('prodvaluehelp');
+            var oSelectedTokens = this.getView().byId('id_prod_value_help');
+            var oMultiInput = this.getView().byId('id_order_val');
+            var aTokens = oSelectedTokens.getTokens();
+            aTokens.forEach(function (oToken) {
+                if (oToken) {
+                    oMultiInput.addToken(oToken);
+                }
             });
+            this.getView().byId("prodVHDialog").close();
+            oTable.removeSelections(true);
+        },
+        closeprodVHDialog: function(oEvent){
+            var oSelectedTokens = this.getView().byId('id_prod_value_help');
+            var oTable = this.getView().byId('prodvaluehelp');
+            oTable.removeSelections(true);
+            oSelectedTokens.removeAllTokens();
+            this.getView().byId("prodVHDialog").close();
         },
         _configDialog: function (oButton, oDialog) {
             oDialog.setMultiSelect(true);
@@ -377,13 +434,45 @@ sap.ui.define([
 
             return Math.floor((utc2 - utc1) / _MS_PER_DAY);
         },
-        onOrderChange:  function(oEvent){
+        onOrderChange: async function (oEvent) {
             var oValue = oEvent.getParameter("newValue");
-            var oMultiInput = this.getView().byId("id_order_val");
-            oMultiInput.addToken(new sap.m.Token({
-                text: oValue
-            }));
-            oMultiInput.setValue('');
+            var oMultiInput = this.getView().byId("id_order_val"),
+            oModel = this.getView().getModel(),
+            that = this;
+            var oFilter= [],ofilterProd,ProdVH = [];
+            ofilterProd = new sap.ui.model.Filter("ProductionOrder", "EQ", oValue);
+            oFilter.push(ofilterProd);
+            if (oValue) {
+                try {
+                    var oProdVH = await that._getProductionVH(oModel, oFilter);
+                    if (oProdVH == '404') {
+                        oMultiInput.setValueState(ValueState.Warning);
+                        oMultiInput.setValueStateText('Invalid Product- ' + oValue);
+                    } else {
+                        oMultiInput.setValueState(ValueState.None);
+                        oMultiInput.setValueStateText('');
+                        var oProductionTokens = oMultiInput.getTokens();
+                        oProductionTokens.map(function (oToken) {
+                            ProdVH.push({ ProductionOrder: oToken.getKey() });
+                        });
+                        let filteredTokenProduction = ProdVH.filter(item => item.ProductionOrder == oValue);
+                        if (filteredTokenProduction.length > 0) {
+                            oMultiInput.setValue('');
+                        } else {
+                            oMultiInput.addToken(new sap.m.Token({
+                                key: oValue, text: oValue
+                            }));
+                            oMultiInput.setValue('');
+                        }
+                    }
+                }catch (error){
+                    oMultiInput.setValueState(ValueState.Warning);
+                    oMultiInput.setValueStateText('Invalid Product- ' + oValue);
+                }
+            }else{
+                oMultiInput.setValueState(ValueState.None);
+                oMultiInput.setValueStateText('');
+            }
         },
         onFilter: async function () {
             var oPlant = this.getView().byId("id_plant").getValue(),
@@ -524,7 +613,9 @@ sap.ui.define([
                 ofilterOrdersData;
             var oConfigDataModel = this.getOwnerComponent().getModel('configurationModel');
             var oConfigData = oConfigDataModel.getData().items;
-            productLogs = [],productnoFound = [];
+            var oFieldDataModel = this.getOwnerComponent().getModel('fieldMappingModel');
+            var oFieldData = oFieldDataModel.getData().items;
+            productLogs = [], productnoFound = [];
             try {
                 if (oConfigData.length > 0) {
                     let urldetails = oConfigData.filter(function (item) {
@@ -574,17 +665,13 @@ sap.ui.define([
                                 Variables = {};
                                 try {
                                     if (Product) {
-                                        var urllabel = "/Labels/Templates/Serial No Label.nlbl";
+                                        var urllabel = Product.labelName//"/Labels/Serial No Label.nlbl";
                                         if (urllabel) {
                                             Variables.FilePath = urllabel;
                                         }
                                         if (Product.Plant) {
-                                            ofilterPlant = new sap.ui.model.Filter("Plant", "EQ", Product.Plant);
-                                            oFiltersdata.push(ofilterPlant);
-                                            ofilterLabeltype = new sap.ui.model.Filter("LabelType", "EQ", 'PROD');
-                                            oFiltersdata.push(ofilterLabeltype);
                                             try {
-                                                let oPrinter = await that._getPlantprinters(oModel, oFiltersdata);
+                                                var oPrinter = Product.Printer;
                                                 if (oPrinter) {
                                                     Variables.Printer = oPrinter;
                                                 } else {
@@ -600,60 +687,200 @@ sap.ui.define([
                                             continue;
                                         }
                                         if (Product.Material) {
-                                            Variables.CATALOG_NUMBER = Product.Material;
+                                            var loftwarematerialfield;
+                                            try {
+                                                let materialfield = oFieldData.filter(function (item) {
+                                                    return item.sapfield === 'Material';
+                                                });
+                                                loftwarematerialfield = materialfield[0].loftwarefield;
+                                            } catch (error) {
+                                                loftwarematerialfield = '';
+                                            }
+                                            if (loftwarematerialfield) { Variables[loftwarematerialfield] = Product.Material; }
                                         }
                                         if (Product.insepectionMemo) {
-                                            Variables.MODEL_NUMBER = Product.insepectionMemo;
+                                            var loftwareMemofield;
+                                            try {
+                                                let Memofield = oFieldData.filter(function (item) {
+                                                    return item.sapfield === 'insepectionMemo';
+                                                });
+                                                loftwareMemofield = Memofield[0].loftwarefield;
+                                            } catch (error) {
+                                                loftwareMemofield = '';
+                                            }
+                                            if (loftwareMemofield) { Variables[loftwareMemofield] = Product.insepectionMemo; }
                                         }
-                                        if (Product.quantity_GRGI){
-                                            Variables.GR_SLIPS_QTY = '1';
+                                        if (Product.quantity_GRGI) {
+                                            var loftwareGRquant;
+                                            try {
+                                                let GRQuantfield = oFieldData.filter(function (item) {
+                                                    return item.sapfield === 'quantity_GRGI';
+                                                });
+                                                loftwareGRquant = GRQuantfield[0].loftwarefield;
+                                            } catch (error) {
+                                                loftwareGRquant = '';
+                                            }
+                                            if (loftwareGRquant) { Variables[loftwareGRquant] = '1'; }
                                         }
                                         Variables.Quantity = '1';
                                         if (Product.labelFrom) {
-                                            Variables.LABEL_FORM = Product.labelFrom;
+                                            var loftwarelabelFrom;
+                                            try {
+                                                let LabelFromfield = oFieldData.filter(function (item) {
+                                                    return item.sapfield === 'labelFrom';
+                                                });
+                                                loftwarelabelFrom = LabelFromfield[0].loftwarefield;
+                                            } catch (error) {
+                                                loftwarelabelFrom = '';
+                                            }
+                                            if (loftwarelabelFrom) { Variables[loftwarelabelFrom] = Product.labelFrom; }
                                         }
                                         if (Product.labelType) {
-                                            Variables.LABEL_TYPE = Product.labelType;
+                                            var loftwarelabelType;
+                                            try {
+                                                let LabelTypefield = oFieldData.filter(function (item) {
+                                                    return item.sapfield === 'labelType';
+                                                });
+                                                loftwarelabelType = LabelTypefield[0].loftwarefield;
+                                            } catch (error) {
+                                                loftwarelabelType = '';
+                                            }
+                                            if (loftwarelabelType) { Variables[loftwarelabelType] = Product.labelType; }
                                         }
                                         if (Product.materialOld) {
-
+                                            var loftwarematerialOld;
+                                            try {
+                                                let materialOldfield = oFieldData.filter(function (item) {
+                                                    return item.sapfield === 'materialOld';
+                                                });
+                                                loftwarematerialOld = materialOldfield[0].loftwarefield;
+                                            } catch (error) {
+                                                loftwarematerialOld = '';
+                                            }
+                                            if (loftwarematerialOld) { Variables[loftwarematerialOld] = Product.materialOld; }
                                         }
                                         if (Product.articleNo_EAN_UPC) {
-                                            Variables.UPC_NUMBER = Product.articleNo_EAN_UPC;
+                                            var loftwarearticleNo;
+                                            try {
+                                                let articleNofield = oFieldData.filter(function (item) {
+                                                    return item.sapfield === 'articleNo_EAN_UPC';
+                                                });
+                                                loftwarearticleNo = articleNofield[0].loftwarefield;
+                                            } catch (error) {
+                                                loftwarearticleNo = '';
+                                            }
+                                            if (loftwarearticleNo) { Variables[loftwarearticleNo] = Product.articleNo_EAN_UPC; }
                                         }
                                         if (Product.materialGroup) {
-                                            Variables.BRAND_NAME = Product.materialGroup;
+                                            var loftwarematerialGroup;
+                                            try {
+                                                let materialGroupfield = oFieldData.filter(function (item) {
+                                                    return item.sapfield === 'materialGroup';
+                                                });
+                                                loftwarematerialGroup = materialGroupfield[0].loftwarefield;
+                                            } catch (error) {
+                                                loftwarematerialGroup = '';
+                                            }
+                                            if (loftwarematerialGroup) { Variables[loftwarematerialGroup] = Product.materialGroup; }
                                         }
                                         if (Product.materialDescription) {
-                                            Variables.DESCRIPTION = Product.materialDescription;
+                                            var loftwarematerialDescription;
+                                            try {
+                                                let materialDescfield = oFieldData.filter(function (item) {
+                                                    return item.sapfield === 'materialDescription';
+                                                });
+                                                loftwarematerialDescription = materialDescfield[0].loftwarefield;
+                                            } catch (error) {
+                                                loftwarematerialDescription = '';
+                                            }
+                                            if (loftwarematerialDescription) { Variables[loftwarematerialDescription] = Product.materialDescription; }
                                         }
                                         if (Product.serialNo) {
-                                            Variables.SERIAL_NUMBER = Product.serialNo;
+                                            var loftwareserialNo;
+                                            try {
+                                                let serialNofield = oFieldData.filter(function (item) {
+                                                    return item.sapfield === 'serialNo';
+                                                });
+                                                loftwareserialNo = serialNofield[0].loftwarefield;
+                                            } catch (error) {
+                                                loftwareserialNo = '';
+                                            }
+                                            if (loftwareserialNo) { Variables[loftwareserialNo] = Product.serialNo; }
                                         }
                                         if (Product.objectListNo) {
 
                                         }
                                         if (Product.orderNo) {
-                                            Variables.PROD_ORDER = Product.orderNo;
+                                            var loftwareorderNo;
+                                            try {
+                                                let orderNofield = oFieldData.filter(function (item) {
+                                                    return item.sapfield === 'orderNo';
+                                                });
+                                                loftwareorderNo = orderNofield[0].loftwarefield;
+                                            } catch (error) {
+                                                loftwareorderNo = '';
+                                            }
+                                            if (loftwareorderNo) { Variables[loftwareorderNo] = Product.orderNo; }
                                         }
                                         if (Product.objectlistCounter) {
-                                            Variables.SEQ_NUM = Product.objectlistCounter;
+                                            var loftwarelistCounter;
+                                            try {
+                                                let listCounterfield = oFieldData.filter(function (item) {
+                                                    return item.sapfield === 'objectlistCounter';
+                                                });
+                                                loftwarelistCounter = listCounterfield[0].loftwarefield;
+                                            } catch (error) {
+                                                loftwarelistCounter = '';
+                                            }
+                                            if (loftwarelistCounter) { Variables[loftwarelistCounter] = Product.objectlistCounter; }
                                         }
                                         if (Product.objectlisCounterMax) {
-                                            Variables.SEQ_QTY = Product.objectlisCounterMax;
+                                            var loftwareCounterMax;
+                                            try {
+                                                let CounterMaxfield = oFieldData.filter(function (item) {
+                                                    return item.sapfield === 'objectlisCounterMax';
+                                                });
+                                                loftwareCounterMax = CounterMaxfield[0].loftwarefield;
+                                            } catch (error) {
+                                                loftwareCounterMax = '';
+                                            }
+                                            if (loftwareCounterMax) { Variables[loftwareCounterMax] = Product.objectlisCounterMax; }
                                         }
                                         if (Product.materialSubstitute) {
-                                            Variables.CUST_PART_NUMBER = Product.materialSubstitute;
+                                            var loftwarematerialSubstitute;
+                                            try {
+                                                let loftwarematerialSubfield = oFieldData.filter(function (item) {
+                                                    return item.sapfield === 'materialSubstitute';
+                                                });
+                                                loftwarematerialSubstitute = loftwarematerialSubfield[0].loftwarefield;
+                                            } catch (error) {
+                                                loftwarematerialSubstitute = '';
+                                            }
+                                            if (loftwarematerialSubstitute) { Variables[loftwarematerialSubstitute] = Product.materialSubstitute; }
                                         }
                                         if (Product.userText) {
-                                            Variables.CUSTOM_TXT = Product.userText;
+                                            var loftwaretext;
+                                            try {
+                                                let loftwaretextfield = oFieldData.filter(function (item) {
+                                                    return item.sapfield === 'userText';
+                                                });
+                                                loftwaretext = loftwaretextfield[0].loftwarefield;
+                                            } catch (error) {
+                                                loftwaretext = '';
+                                            }
+                                            if (loftwaretext) { Variables[loftwaretext] = Product.userText; }
                                         }
                                         if (Product.location) {
-                                            if (oPlant == "1710") {
-                                                Variables.LOCATION = "Russellville, AL";
-                                            } else if (oPlant == "2910") {
-                                                Variables.LOCATION = "Toronto, ON";
+                                            var loftwarelocation;
+                                            try {
+                                                let loftwarelocationfield = oFieldData.filter(function (item) {
+                                                    return item.sapfield === 'location';
+                                                });
+                                                loftwarelocation = loftwarelocationfield[0].loftwarefield;
+                                            } catch (error) {
+                                                loftwarelocation = '';
                                             }
+                                            if (loftwarelocation) { Variables[loftwarelocation] = Product.location; }
                                         }
                                         oLoftware.Variables.push(Variables);
                                     } else {
@@ -795,6 +1022,16 @@ sap.ui.define([
                     }
                 });
             })
+        },
+        onExit: function(){
+            var oProdVH = this.getView().byId('prodVHDialog');
+            if(oProdVH){
+                var oprodContent = oProdVH.getContent();
+                oProdVH.destroyContent(oprodContent[0]);
+                oProdVH.destroy();
+                this.getView().byId('id_prodkey_text').destroy();
+                this.getView().byId('id_proddesc_text').destroy();
+            }
         }
     });
 });

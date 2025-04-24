@@ -1,15 +1,59 @@
-<core:FragmentDefinition xmlns="sap.m" xmlns:core="sap.ui.core">
-	<SelectDialog
-		noDataText="No Orders Found"
-		id="selectDialog"
-		title="{i18n>orders}"
-		items="{AllProducts>/}"
-		search=".onValueHelpprodSearch"
-		confirm=".onValueHelpprodClose"
-		cancel=".onValueHelpprodClose"
-		>
-		<StandardListItem id="id_standard"
-			title="{AllProducts>ProductionOrder}"
-			description="{AllProducts>ProductionOrderText}" />
-	</SelectDialog>
+<core:FragmentDefinition
+	xmlns="sap.m"
+	xmlns:mvc="sap.ui.core.mvc"
+	xmlns:core="sap.ui.core">
+	<Dialog
+		id="prodVHDialog"
+		title="Search Production Orders" contentWidth="50%">
+		<content>
+            <VBox id="formprodContainer" >
+                <Table id="prodvaluehelp" width="auto" mode="MultiSelect" inset="false" enableBusyIndicator="true"
+                    sticky="ColumnHeaders,HeaderToolbar"
+                    growing="true"
+                    alternateRowColors="true"
+                    showNoData="true"
+					selectionChange="OnVHprodSelected"
+                    items="{
+                            path: 'AllProducts>/'
+                        }">
+                        <headerToolbar>
+								<OverflowToolbar id="id_tabletoolbar2">
+									<SearchField id="id_prod_search" search="onprodSearch" change="onprodSearch" placeholder="Search Orders" width="90%" />
+								</OverflowToolbar>
+						</headerToolbar>
+                        <columns>
+								<Column id="id_prodvh_key1" >
+									<Text id="id_prod_key" text="Production order"/>
+								</Column>
+                                <Column id="id_prodvh_desc1">
+                                    <Text id="id_prod_desc" text="Description"/>
+								</Column>
+						</columns>
+                        <items>
+							<ColumnListItem id="id_prodvaluecolumns1" vAlign="Middle">
+								<cells>
+                                    <Text  id="id_prodkey_text"  text="{AllProducts>ProductionOrder}" />
+                                    <Text  id="id_proddesc_text"  text="{ProductionOrderText}" />
+                                </cells>
+                            </ColumnListItem>
+                        </items>
+                </Table>
+            </VBox>
+        </content>
+        <footer>
+			<Toolbar id="id_toolbar1">
+				<content>
+                    <MultiInput id="id_prod_value_help" showValueHelp="false" placeholder="Orders Selected" />
+					<ToolbarSpacer id="id_spacer1" />
+					<Button id="id_prodsave" type="Emphasized"
+							text="ok"
+							press="okprodVHDialog" />
+					<Button id="id_prodreject"
+						text="close"
+						type="Reject"
+						press="closeprodVHDialog" />
+				</content>
+			</Toolbar>
+		</footer>
+    </Dialog>
 </core:FragmentDefinition>
